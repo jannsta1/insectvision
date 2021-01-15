@@ -13,7 +13,7 @@ __maintainer__ = "Evripidis Gkanias"
 from compoundeye.geometry import fibonacci_sphere
 from compoundeye.evaluation import evaluate
 
-from environment import Sun
+import ephem
 from datetime import datetime, timedelta
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from astropy.stats import circmean
@@ -162,7 +162,7 @@ def plot_res2ele(samples=1000, noise=0., subplot=111):
 
 
 def plot_ephemeris(obs, dt=10):
-    sun = Sun()
+    sun = ephem.Sun()
     delta = timedelta(minutes=dt)
 
     azi, azi_diff, ele = [], [], []
