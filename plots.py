@@ -167,7 +167,7 @@ def plot_ephemeris(obs, dt=10):
 
     azi, azi_diff, ele = [], [], []
 
-    for month in xrange(12):
+    for month in range(12):
         obs.date = datetime(year=2018, month=month + 1, day=13)
 
         cur = obs.next_rising(sun).datetime() + delta
@@ -208,8 +208,8 @@ def plot_ephemeris(obs, dt=10):
 
     y = x.dot(w)
     error = np.absolute(y - azi_diff)
-    print "Error: %.4f +/- %.4f" % (error.mean(), error.std() / np.sqrt(len(error))),
-    print "| N = %d" % len(error)
+    print("Error: %.4f +/- %.4f" % (error.mean(), error.std() / np.sqrt(len(error))), end=' ')
+    print("| N = %d" % len(error))
 
     plt.subplot(221)
     plt.scatter(azi, ele, c=azi_diff, cmap='Reds', marker='.')
@@ -403,7 +403,7 @@ def plot_accuracy(save=None, repeats=10, verbose=False, **kwargs):
     taus = np.zeros_like(etas)
     means = np.zeros_like(etas)
     ses = np.zeros_like(etas)
-    for i in xrange(repeats):
+    for i in range(repeats):
         noise = np.ones(60, int)
         x = np.argsort(np.absolute(np.random.randn(noise.size)))
         for ii, eta in enumerate(etas):
@@ -416,10 +416,10 @@ def plot_accuracy(save=None, repeats=10, verbose=False, **kwargs):
             taus[ii] = (taus[ii] * i + np.maximum(tau, 0).mean()) / (i + 1)
 
     if verbose:
-        print " Disturbance         Cost          Confidence        "
-        print "-----------------------------------------------------"
+        print(" Disturbance         Cost          Confidence        ")
+        print("-----------------------------------------------------")
         for i, eta in enumerate(etas):
-            print "   % 3.2f%%    % 2.2f +/- %.4f    % 2.2f" % (eta * 100, means[i], ses[i], taus[i])
+            print("   % 3.2f%%    % 2.2f +/- %.4f    % 2.2f" % (eta * 100, means[i], ses[i], taus[i]))
 
     ax1.fill_between(etas * 100, means-ses, means+ses, facecolor="grey")
     ax1.plot(etas * 100, means, color="black", linestyle="-", label=r'$J_s$')
@@ -459,7 +459,7 @@ def plot_gate_optimisation(load="data/gate-costs.npz", save=None, **kwargs):
         for ii, sigma, shift in zip(np.arange(sigmas.size), sigmas.flatten(), shifts.flatten()):
             d_err, d_eff, tau, _, _ = evaluate(sigma=sigma, shift=shift, verbose=False, **kwargs)
             means[ii] = d_err.mean()
-            print "Sigma: %d, Shift: %d, Cost: %.2f" % (np.rad2deg(sigma), np.rad2deg(shift), d_err.mean())
+            print("Sigma: %d, Shift: %d, Cost: %.2f" % (np.rad2deg(sigma), np.rad2deg(shift), d_err.mean()))
 
         means = means.reshape(shifts.shape)
         np.savez_compressed(save, shifts=shifts, sigmas=sigmas, costs=means)
@@ -468,8 +468,8 @@ def plot_gate_optimisation(load="data/gate-costs.npz", save=None, **kwargs):
     sigma_min = sigmas.flatten()[ii]
     shift_min = shifts.flatten()[ii]
     means_min = means.flatten()[ii]
-    print 'Minimum cost (%.2f) for Sigma = %.2f, Shift = %.2f' % (
-        means_min, np.rad2deg(sigma_min), np.rad2deg(shift_min))
+    print('Minimum cost (%.2f) for Sigma = %.2f, Shift = %.2f' % (
+        means_min, np.rad2deg(sigma_min), np.rad2deg(shift_min)))
 
     with plt.rc_context({'ytick.color': 'white'}):
         plt.pcolormesh(shifts, sigmas, means, cmap="Reds", vmin=0, vmax=90)
@@ -491,9 +491,9 @@ def plot_gate_cost(samples=500, **kwargs):
     tau = np.rad2deg(tau)
     d_mean = np.nanmean(d_err)
     d_se = d_err.std() / np.sqrt(d_err.size)
-    print "Tilt             overall              0 deg              30 deg             60 deg     "
-    print "---------------------------------------------------------------------------------------"
-    print "Mean cost    %.2f +/- %.4f" % (d_mean, d_se),
+    print("Tilt             overall              0 deg              30 deg             60 deg     ")
+    print("---------------------------------------------------------------------------------------")
+    print("Mean cost    %.2f +/- %.4f" % (d_mean, d_se), end=' ')
 
     if samples == 1000:
         samples /= 2
@@ -504,11 +504,11 @@ def plot_gate_cost(samples=500, **kwargs):
     d_00 = d_err[:, 0]
     d_30 = np.nanmean(d_err[:, 1:9], axis=1)
     d_60 = np.nanmean(d_err[:, 9:], axis=1)
-    print "   %.2f +/- %.4f" % (np.nanmean(d_00), np.nanstd(d_00) / d_00.size),
-    print "   %.2f +/- %.4f" % (np.nanmean(d_err[:, 1:9]), np.nanstd(d_err[:, 1:9]) / d_err[:, 1:9].size),
-    print "   %.2f +/- %.4f" % (np.nanmean(d_err[:, 9:]), np.nanstd(d_err[:, 9:]) / d_err[:, 9:].size)
+    print("   %.2f +/- %.4f" % (np.nanmean(d_00), np.nanstd(d_00) / d_00.size), end=' ')
+    print("   %.2f +/- %.4f" % (np.nanmean(d_err[:, 1:9]), np.nanstd(d_err[:, 1:9]) / d_err[:, 1:9].size), end=' ')
+    print("   %.2f +/- %.4f" % (np.nanmean(d_err[:, 9:]), np.nanstd(d_err[:, 9:]) / d_err[:, 9:].size))
 
-    for i, ang, dd in zip(range(3), [0, np.pi/6, np.pi/3], [d_00, d_30, d_60]):
+    for i, ang, dd in zip(list(range(3)), [0, np.pi/6, np.pi/3], [d_00, d_30, d_60]):
         ax = plt.subplot2grid((1, 10), (0, i * 3), colspan=3, polar=True)
         ax.set_theta_zero_location("N")
         ax.set_theta_direction(-1)
@@ -601,8 +601,8 @@ def plot_structure_optimisation(load="data/structure-costs.npz", save=None, **kw
         n_min = ns[ii, np.arange(91)]
         means_min = means[ii, np.arange(91)]
 
-        print 'Minimum cost (%.2f) for N = %d, Omega = %.2f' % (means_min[jj], n_min[jj], omega_min[jj])
-        print 'Mean omega %.2f +/- %.4f' % (omega_min.mean(), omega_min.std() / np.sqrt(omega_min.size))
+        print('Minimum cost (%.2f) for N = %d, Omega = %.2f' % (means_min[jj], n_min[jj], omega_min[jj]))
+        print('Mean omega %.2f +/- %.4f' % (omega_min.mean(), omega_min.std() / np.sqrt(omega_min.size)))
 
         with plt.rc_context({'ytick.color': 'white'}):
             plt.pcolormesh(np.deg2rad(omegas), ns, means, cmap="Reds", vmin=0, vmax=90)
@@ -719,7 +719,7 @@ def plot_summary_response(phi_mean, phi_max, fit_line=True, subplot=111):
     x = np.array(x)
     y = np.array(y)
     if fit_line:
-        print x.shape, y.shape
+        print(x.shape, y.shape)
         a, b = np.linalg.pinv(x[:-1]).dot(y[:-1])
 
         plt.plot([-1, 8], np.rad2deg([(-1 - b) / a, (8 - b) / a]), 'r-.')

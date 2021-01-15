@@ -154,7 +154,7 @@ def evaluate(nb_pol=60, omega=56, sigma=np.deg2rad(13), shift=np.deg2rad(40),
                 eta = np.argsort(np.absolute(np.random.randn(*P.shape)))[:int(noise * P.shape[0])]
                 # eta = np.array(np.absolute(np.random.randn(*P.shape)) < noise, dtype=bool)
                 if verbose:
-                    print "Noise level: %.4f (%.2f %%)" % (noise, 100. * eta.sum() / float(eta.size))
+                    print("Noise level: %.4f (%.2f %%)" % (noise, 100. * eta.sum() / float(eta.size)))
             else:
                 eta = np.zeros_like(theta, dtype=bool)
             P[eta] = 0.  # destroy the polarisation pattern
@@ -296,4 +296,4 @@ if __name__ == "__main__":
     thetas, phis, _ = angles_distribution(60, 56)
 
     for theta, phi in zip(thetas, phis):
-        print np.rad2deg(theta), np.rad2deg(phi)
+        print(np.rad2deg(theta), np.rad2deg(phi))

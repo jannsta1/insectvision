@@ -12,7 +12,7 @@ __maintainer__ = "Evripidis Gkanias"
 
 from compoundeye.geometry import angles_distribution
 from environment import Sun, Sky, eps
-from world import load_routes, Hybrid
+from environment.antworld import load_routes, Hybrid
 from sphere.transform import sph2vec, vec2sph, tilt
 from code.compass import decode_sph
 from net import CX
@@ -41,14 +41,14 @@ def get_terrain(max_altitude=.5, tau=.6, x=None, y=None):
         z = np.random.randn(*x.shape) / 50
         terrain = np.zeros_like(z)
 
-        for i in xrange(terrain.shape[0]):
-            print "%04d / %04d" % (i + 1, terrain.shape[0]),
-            for j in xrange(terrain.shape[1]):
+        for i in range(terrain.shape[0]):
+            print("%04d / %04d" % (i + 1, terrain.shape[0]), end=' ')
+            for j in range(terrain.shape[1]):
                 k = np.sqrt(np.square(x[i, j] - x) + np.square(y[i, j] - y)) < tau
                 terrain[i, j] = z[k].mean()
                 if j % 20 == 0:
-                    print ".",
-            print ""
+                    print(".", end=' ')
+            print("")
 
         np.savez_compressed("terrain-%.2f.npz" % tau, terrain=terrain)
         z = terrain
@@ -300,9 +300,9 @@ def create_ephem_paths():
     terrain = z_terrain.copy()
     for enable_ephemeris in [False, True]:
         if enable_ephemeris:
-            print "Foraging with the time compensation mechanism."
+            print("Foraging with the time compensation mechanism.")
         else:
-            print "Foraging without the time compensation mechanism."
+            print("Foraging without the time compensation mechanism.")
 
         # stats
         d_x = []  # logarithmic distance
@@ -310,7 +310,7 @@ def create_ephem_paths():
         tau = []  # tortuosity
         ri = 0
 
-        print "Routes: ",
+        print("Routes: ", end=' ')
         for route in routes[::2]:
             net = CX(noise=0., pontin=False)
             net.update = True
@@ -429,8 +429,8 @@ def create_ephem_paths():
             stats["d_x"].append(d_x[-1])
             stats["d_c"].append(d_c[-1])
             stats["tau"].append(tau[-1])
-            print ".",
-        print ""
-        print "average time:", avg_time / ri  # 1:16:40
+            print(".", end=' ')
+        print("")
+        print("average time:", avg_time / ri)  # 1:16:40
 
     np.savez_compressed("data/pi-stats-ephem.npz", **stats)

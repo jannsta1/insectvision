@@ -58,9 +58,9 @@ class Hybrid(object):
             d_x, d_phi = np.abs(args[:2])
         elif len(args) > 0:
             d_x = np.abs(args[0])
-        if "d_x" in kwargs.keys():
+        if "d_x" in list(kwargs.keys()):
             d_x = np.abs(kwargs["d_x"])
-        if "d_phi" in kwargs.keys():
+        if "d_phi" in list(kwargs.keys()):
             d_phi = np.abs(kwargs["d_phi"])
 
         return d_x >= self.__step or d_phi >= self.__phi  # type: bool

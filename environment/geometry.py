@@ -13,7 +13,7 @@ __maintainer__ = "Evripidis Gkanias"
 import numpy as np
 from copy import copy
 from numbers import Number
-from world.conditions import Hybrid
+from environment.conditions import Hybrid
 from sphere.distance import angle_between
 # from sphere import angle_between
 
@@ -40,7 +40,7 @@ class PolygonList(list):
             super(PolygonList, self).__init__()
 
         if ext > 0:
-            print "Warning: %d elements extracted from the list because of wrong type." % ext
+            print("Warning: %d elements extracted from the list because of wrong type." % ext)
 
     @property
     def x(self):
@@ -613,7 +613,7 @@ def route_like(r, xs=None, ys=None, zs=None, phis=None,
 
 
 if __name__ == "__main__":
-    from world import load_world, load_routes
+    from environment.antworld import load_world, load_routes
     from datetime import datetime
     import matplotlib.pyplot as plt
 

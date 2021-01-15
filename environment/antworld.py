@@ -20,9 +20,9 @@ import ephem
 from matplotlib import cm
 from datetime import timedelta, datetime
 from PIL import ImageDraw, Image
-from utils import shifted_datetime
+from environment.utils import shifted_datetime
 from ephem import Observer
-from geometry import PolygonList, Polygon, Route
+from environment.geometry import PolygonList, Polygon, Route
 
 
 __dir__ = os.path.dirname(os.path.realpath(__file__))
@@ -330,8 +330,8 @@ def load_routes(routes_filename=ROUTES_FILENAME):
     mat = loadmat(__seville_2009__ + routes_filename)
     ant, route, key = 1, 1, lambda a, r: "Ant%d_Route%d" % (a, r)
     routes = []
-    while key(ant, route) in mat.keys():
-        while key(ant, route) in mat.keys():
+    while key(ant, route) in list(mat.keys()):
+        while key(ant, route) in list(mat.keys()):
             mat[key(ant, route)][:, :2] /= 100.  # convert the route data to meters
             xs, ys, phis = mat[key(ant, route)].T
             r = Route(xs, ys, .01, phis=np.deg2rad(phis), agent_no=ant, route_no=route)
@@ -352,7 +352,7 @@ def save_route(rt, name):
 
 if __name__ == "__main__":
     import pygame
-    from conditions import Stepper
+    from .conditions import Stepper
 
     H = 500
     W = 1000

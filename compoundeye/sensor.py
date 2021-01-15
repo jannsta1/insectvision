@@ -10,7 +10,7 @@ __version__ = "1.0.1"
 __maintainer__ = "Evripidis Gkanias"
 
 
-from model import DRA, spectrum
+from .model import DRA, spectrum
 
 import numpy as np
 
@@ -25,7 +25,7 @@ class POLCompassDRA(DRA):
 
 if __name__ == "__main__":
     from environment import Sky
-    from model import visualise
+    from .model import visualise
 
     sky = Sky(theta_s=np.pi/3)
     dra = POLCompassDRA()

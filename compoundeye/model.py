@@ -10,7 +10,7 @@ __version__ = "1.0.1"
 __maintainer__ = "Evripidis Gkanias"
 
 
-from geometry import angles_distribution, fibonacci_sphere
+from .geometry import angles_distribution, fibonacci_sphere
 from environment import Environment, spectrum, spectrum_influence, eps
 from sphere.transform import tilt
 from sphere import angdist
@@ -243,7 +243,7 @@ if __name__ == "__main_2__":
         ), axis=-1), 0, 1)
         plt.subplot(321)
         plt.title("Left")
-        print np.rad2deg(l_eye.yaw_pitch_roll)
+        print(np.rad2deg(l_eye.yaw_pitch_roll))
         plt.scatter(l_phi, l_theta, c=L, marker=".", s=np.power(s, p * np.absolute(l_theta) / np.pi))
         plt.ylabel("epsilon (elevation)")
         plt.xlim([-np.pi, np.pi])
