@@ -1,19 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from compoundeye.geometry import angles_distribution, fibonacci_sphere
-from sphere.transform import tilt
-from environment import Sky, eps, spectrum_influence, spectrum
-from environment.sky import T_L
-from sphere import azidist
-
-
-def wrap_to_pi(angles_in):
-    return angles_in % (2 * np.pi) - np.pi
-
-
-def wrap_to_2pi(angles_in):
-    return (angles_in + 2 * np.pi) % (2 * np.pi)
+from environment import eps, spectrum_influence, spectrum
 
 
 class Network(object):
@@ -44,7 +32,9 @@ class Network(object):
     def compute(self, sensor, luminance, dop, aop, do_tilt=False):
 
         # Input (POL) layer -- Photo-receptors
+        print('luminance ALL: {}'.format(luminance))
         luminance = spectrum_influence(v=luminance, wl=spectrum["uv"])
+        print('luminance UV: {}'.format(luminance))
 
         # log for plotting
         self.latest_luminance = luminance
@@ -105,7 +95,6 @@ class Network(object):
 
     def plot_weight_states(self, label_font_size=11, unit_font_size=10, colormap='viridis'):
 
-        import matplotlib.cm as cm
         # sources = ['TL2', 'CL1', 'TB1', 'TB1', 'TN', 'TB1', 'TB1', 'CPU4', 'CPU4',
         #            'CPU4', 'Pontin', 'Pontin']
         # targets = ['CL1', 'TB1', 'TB1', 'CPU4', 'CPU4', 'CPU1a', 'CPU1b', 'CPU1a',

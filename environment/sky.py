@@ -71,8 +71,6 @@ class Sky(Environment):
         """
 
         theta_s, phi_s = self.theta_s, self.phi_s
-        print ('internal phi {}'.format(self.phi_s))
-
         # SKY INTEGRATION
         gamma = np.arccos(np.cos(theta_sensor) * np.cos(theta_s) +
                           np.sin(theta_sensor) * np.sin(theta_s) * np.cos(phi_sensor - phi_s))
@@ -129,7 +127,7 @@ class Sky(Environment):
 
         return y, p, a
 
-    def __call__(self, theta=None, phi=None, noise=0., eta=None, uniform_polariser=False):
+    def __call__(self, theta=None, phi=None, theta_tilt=0., phi_tilt=0., noise=0., eta=None, uniform_polariser=False):
         """
         Call the sky instance to generate the sky cues.
 
@@ -150,6 +148,8 @@ class Sky(Environment):
         theta = ((self.__theta if theta is None else theta) + np.pi) % (2 * np.pi) - np.pi
         phi = ((self.__phi if phi is None else phi) + np.pi) % (2 * np.pi) - np.pi
 
+        self.theta_t = theta_tilt
+        self.phi_t = phi_tilt
 
         # save points of interest
         self.__theta = theta.copy()

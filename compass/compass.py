@@ -10,8 +10,8 @@ __version__ = "1.0.1"
 __maintainer__ = "Evripidis Gkanias"
 
 
-import numpy as np
 from numbers import Number
+import numpy as np
 
 
 def encode_sph(theta, phi=None, length=8):
