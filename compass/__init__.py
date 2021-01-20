@@ -10,4 +10,4 @@ __version__ = "1.0.1"
 __maintainer__ = "Evripidis Gkanias"
 
 
-from .compass import encode_sph, decode_sph, decode_xy
+# from .compass import encode_sph, decode_sph, decode_xy

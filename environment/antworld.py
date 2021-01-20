@@ -163,7 +163,7 @@ class World(object):
         nants = int(np.array([r.agent_no for r in self.routes]).max())      # the ants' ID
         nroutes = int(np.array([r.route_no for r in self.routes]).max())  # the routes' ID
         for route in self.routes:
-            # code the routes similarly to the polygons
+            # compass the routes similarly to the polygons
             rt = route.scale(*(self.ratio2meters,) * 3)
             rt = rt * [width, length, height]
             r, g, b, _ = cmap(float(rt.agent_no) / float(len(self.routes)))
@@ -261,11 +261,11 @@ class World(object):
         ])
         thetas, phis, rhos = [], [], []
 
-        # code position for meters to pixel-space
+        # compass position for meters to pixel-space
         pos = np.array([x, y, z]) / self.ratio2meters
         pos *= np.array([width, length, height / Z])
         for p in self.polygons.scale(*((self.ratio2meters,) * 3)):
-            # code polygons' points from meters to pixels
+            # compass polygons' points from meters to pixels
             pp = p * [width, length, height / Z]  # type: Polygon
             # and then into spherical coordinates
             xyz = np.array(pp.xyz) - pos
@@ -274,7 +274,7 @@ class World(object):
             phis.append(phi)
             rhos.append(rho)
 
-        # code spherical elevation to pixel height
+        # compass spherical elevation to pixel height
         thetas = (height / Z) * ((((np.pi/2 - np.array(thetas)) % np.pi) / np.pi) - (1 - include_sky) / 2.)
         phis = width * ((np.pi + np.array(phis)) % (2 * np.pi)) / (2 * np.pi)
         rhos = la.norm(np.array(rhos), axis=-1)

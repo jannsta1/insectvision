@@ -41,7 +41,7 @@ def angles_distribution(nb_lenses, fov, verbose=False):
             print("Dome area (S_a):", S_a)
 
         with open(filename, "r") as f:
-            params = yaml.load(f)
+            params = yaml.load(f, Loader=yaml.FullLoader)
             thetas = np.array(params['theta'])
             phis = np.array(params['phi'])
             rhos = np.array(params['rho'])

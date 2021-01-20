@@ -194,11 +194,11 @@ class Polygon(object):
             nxyz = np.array([x, y, z]) / xyzmax
 
             if centralise:
-                # code to [-1, 1]
+                # compass to [-1, 1]
                 nxyz -= .5
                 nxyz *= 2.
             if decentralise:
-                # code to [0, 1]
+                # compass to [0, 1]
                 nxyz += .5
                 nxyz / 2.
 
@@ -434,11 +434,11 @@ class Route(object):
             nxyz = np.array([x, y, z]) / xyzmax
 
             if centralise:
-                # code to [-1, 1]
+                # compass to [-1, 1]
                 nxyz -= .5
                 nxyz *= 2.
             if decentralise:
-                # code to [0, 1]
+                # compass to [0, 1]
                 nxyz += .5
                 nxyz / 2.
 

@@ -12,6 +12,7 @@ __maintainer__ = "Evripidis Gkanias"
 
 import ephem
 import numpy as np
+import matplotlib.pyplot as plt
 
 from environment.base import Environment
 from sphere.transform import tilt
@@ -30,15 +31,15 @@ class Sky(Environment):
     The Sky environment class. This environment class provides skylight cues.
     """
 
-    def __init__(self, theta_s=0., phi_s=0., theta_t=0., phi_t=0., name="sky"):
+    def __init__(self, theta_s=np.pi/2, phi_s=np.pi, theta_t=0., phi_t=0., name="sky"):
         """
 
         :param theta_s: sun elevation (distance from zenith)
         :param phi_s: sun azimuth (clockwise from North)
-        :param theta_t: elevation of observer's zenith point with respect to the sky zenith point
-        :param phi_t: azimuth of observer's zenith point with respect to the sky zenith point
+        :param theta_t: elevation of observer's zenith point with respect to the sky zenith point (tilt angle: 1)
+        :param phi_t: azimuth of observer's zenith point with respect to the sky zenith point (tilt angle: 2)
         """
-        super(Sky, self).__init__(name=name)
+        super().__init__(name=name)
         self.__a, self.__b, self.__c, self.__d, self.__e = 0., 0., 0., 0., 0.
         self.__tau_L = 2.  # type: float
         self._update_luminance_coefficients(self.__tau_L)
@@ -59,6 +60,75 @@ class Sky(Environment):
         self.verbose = False  # type: bool
         self.__is_generated = False  # type: bool
 
+        # # variables for plotting functions
+        # radius_samples = np.linspace(0, 2*np.pi, 10, endpoint=False)
+        # angle_samples = np.linspace(0, 2*np.pi, 10, endpoint=False)
+        # radius_matrix, theta_matrix = np.meshgrid(radius_samples, angle_samples)
+
+    def lum_aop_dop_from_position(self, theta_sensor=None, phi_sensor=None, noise=0., eta=None, uniform_polariser=False):
+        """
+
+        """
+
+        theta_s, phi_s = self.theta_s, self.phi_s
+        print ('internal phi {}'.format(self.phi_s))
+
+        # SKY INTEGRATION
+        gamma = np.arccos(np.cos(theta_sensor) * np.cos(theta_s) +
+                          np.sin(theta_sensor) * np.sin(theta_s) * np.cos(phi_sensor - phi_s))
+
+        # Intensity
+        i_prez = self.L(gamma, theta_sensor)
+        i_00 = self.L(0., theta_s)  # the luminance (Cd/m^2) at the zenith point
+        i_90 = self.L(np.pi / 2, np.absolute(theta_s - np.pi / 2))  # the luminance (Cd/m^2) on the horizon
+
+        # influence of sky intensity
+        i = (1. / (i_prez + eps) - 1. / (i_00 + eps)) * i_00 * i_90 / (i_00 - i_90 + eps)
+        if uniform_polariser:
+            y = np.maximum(np.full_like(i_prez, self.Y_z), 0.)
+        else:
+            y = np.maximum(self.Y_z * i_prez / (i_00 + eps), 0.)  # Illumination
+
+        # Degree of Polarisation
+        lp = np.square(np.sin(gamma)) / (1 + np.square(np.cos(gamma)))
+        if uniform_polariser:
+            p = np.ones_like(lp)
+        else:
+            p = np.clip(2. / np.pi * self.M_p * lp * (theta_sensor * np.cos(theta_sensor) + (np.pi / 2 - theta_sensor) * i), 0., 1.)
+
+        # Angle of polarisation
+        if uniform_polariser:
+            a = np.full_like(p, phi_s + np.pi)
+        else:
+            _, a = tilt(theta_s, phi_s + np.pi, theta_sensor, phi_sensor)
+
+        # create cloud disturbance
+        if eta is None:
+            if type(noise) is np.ndarray:
+                if noise.size == p.size:
+                    # print "yeah!"
+                    eta = np.array(noise, dtype=bool)
+                    if self.verbose:
+                        print("Noise level: %.4f (%.2f %%)" % (noise, 100. * eta.sum() / float(eta.size)))
+                else:
+                    eta = np.zeros_like(theta_sensor, dtype=bool)
+                    eta[:noise.size] = noise
+            elif noise > 0:
+                eta = np.argsort(np.absolute(np.random.randn(*p.shape)))[:int(noise * p.shape[0])]
+            else:
+                eta = np.zeros_like(theta_sensor, dtype=bool)
+        y[eta] = 0.
+        p[eta] = 0.  # destroy the polarisation pattern
+        a[eta] = np.nan
+
+        self.__y = y
+        self.__dop = p
+        self.__aop = a
+        self.__eta = eta
+        self.__is_generated = True
+
+        return y, p, a
+
     def __call__(self, theta=None, phi=None, noise=0., eta=None, uniform_polariser=False):
         """
         Call the sky instance to generate the sky cues.
@@ -73,76 +143,23 @@ class Sky(Environment):
         :type eta: np.ndarray
         :param uniform_polariser:
         :type uniform_polariser: bool
-        :return: Y, P, A
+        :return: Y, P, A  ( ,degree of polarisation, angle of polarisation)
         """
 
         # set default arguments
         theta = ((self.__theta if theta is None else theta) + np.pi) % (2 * np.pi) - np.pi
         phi = ((self.__phi if phi is None else phi) + np.pi) % (2 * np.pi) - np.pi
 
+
         # save points of interest
         self.__theta = theta.copy()
         self.__phi = phi.copy()
 
         # transform points in the sky according to tilting parameters
-        theta, phi = tilt(self.theta_t, self.phi_t + np.pi, theta=theta, phi=phi)
-        theta_s, phi_s = self.theta_s, self.phi_s
+        theta, phi = tilt(self.theta_t, self.phi_t + np.pi, theta=theta, phi=phi)   # todo - why put into -180<phi<180 and then add back here?
 
-        # SKY INTEGRATION
-        gamma = np.arccos(np.cos(theta) * np.cos(theta_s) +
-                          np.sin(theta) * np.sin(theta_s) * np.cos(phi - phi_s))
-
-        # Intensity
-        i_prez = self.L(gamma, theta)
-        i_00 = self.L(0., theta_s)  # the luminance (Cd/m^2) at the zenith point
-        i_90 = self.L(np.pi / 2, np.absolute(theta_s - np.pi / 2))  # the luminance (Cd/m^2) on the horizon
-        # influence of sky intensity
-        i = (1. / (i_prez + eps) - 1. / (i_00 + eps)) * i_00 * i_90 / (i_00 - i_90 + eps)
-        if uniform_polariser:
-            y = np.maximum(np.full_like(i_prez, self.Y_z), 0.)
-        else:
-            y = np.maximum(self.Y_z * i_prez / (i_00 + eps), 0.)  # Illumination
-
-        # Degree of Polarisation
-        lp = np.square(np.sin(gamma)) / (1 + np.square(np.cos(gamma)))
-        if uniform_polariser:
-            p = np.ones_like(lp)
-        else:
-            p = np.clip(2. / np.pi * self.M_p * lp * (theta * np.cos(theta) + (np.pi / 2 - theta) * i), 0., 1.)
-
-        # Angle of polarisation
-        if uniform_polariser:
-            a = np.full_like(p, phi_s + np.pi)
-        else:
-            _, a = tilt(theta_s, phi_s + np.pi, theta, phi)
-
-        # create cloud disturbance
-        if eta is None:
-            if type(noise) is np.ndarray:
-                if noise.size == p.size:
-                    # print "yeah!"
-                    eta = np.array(noise, dtype=bool)
-                    if self.verbose:
-                        print("Noise level: %.4f (%.2f %%)" % (noise, 100. * eta.sum() / float(eta.size)))
-                else:
-                    eta = np.zeros_like(theta, dtype=bool)
-                    eta[:noise.size] = noise
-            elif noise > 0:
-                eta = np.argsort(np.absolute(np.random.randn(*p.shape)))[:int(noise * p.shape[0])]
-            else:
-                eta = np.zeros_like(theta, dtype=bool)
-        y[eta] = 0.
-        p[eta] = 0.  # destroy the polarisation pattern
-        a[eta] = np.nan
-
-        self.__y = y
-        self.__dop = p
-        self.__aop = a
-        self.__eta = eta
-
-        self.__is_generated = True
-
-        return y, p, a
+        # print ('sky state: phi {}  __phi {} theta {}  __theta {}'.format(phi, self.__phi, theta, self.__theta))
+        return self.lum_aop_dop_from_position(theta_sensor=theta, phi_sensor=phi, noise=noise, eta=eta, uniform_polariser=uniform_polariser)
 
     def L(self, chi, z):
         """
@@ -321,6 +338,7 @@ class Sky(Environment):
     @theta.setter
     def theta(self, value):
         self.__theta = value
+        print ('Updating theta')
         self.__is_generated = False
 
     @property
@@ -430,11 +448,11 @@ class Sky(Environment):
         return s
 
 
-def visualise_luminance(sky):
-    import matplotlib.pyplot as plt
+def visualise_luminance(sky, show=True, ax=None):
 
-    plt.figure("Luminance", figsize=(4.5, 4.5))
-    ax = plt.subplot(111, polar=True)
+    if not ax:
+        plt.figure("Luminance", figsize=(4.5, 4.5))
+        ax = plt.subplot(111, polar=True)
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
 
@@ -448,14 +466,16 @@ def visualise_luminance(sky):
     ax.set_xticklabels([r'$0^\circ$ (N)', r'$45^\circ$ (NE)', r'$90^\circ$ (E)', r'$135^\circ$ (SE)',
                         r'$180^\circ$ (S)', r'$-135^\circ$ (SW)', r'$-90^\circ$ (W)', r'$-45^\circ$ (NW)'])
 
-    plt.show()
+    if show:
+        plt.show()
+    return ax
 
 
-def visualise_degree_of_polarisation(sky):
-    import matplotlib.pyplot as plt
+def visualise_degree_of_polarisation(sky, show=True, ax=None):
 
-    plt.figure("degree-of-polarisation", figsize=(4.5, 4.5))
-    ax = plt.subplot(111, polar=True)
+    if not ax:
+        plt.figure("degree-of-polarisation", figsize=(4.5, 4.5))
+        ax = plt.subplot(111, polar=True)
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
 
@@ -470,14 +490,16 @@ def visualise_degree_of_polarisation(sky):
     ax.set_xticklabels([r'$0^\circ$ (N)', r'$45^\circ$ (NE)', r'$90^\circ$ (E)', r'$135^\circ$ (SE)',
                         r'$180^\circ$ (S)', r'$-135^\circ$ (SW)', r'$-90^\circ$ (W)', r'$-45^\circ$ (NW)'])
 
-    plt.show()
+    if show:
+        plt.show()
+    return ax
 
 
-def visualise_angle_of_polarisation(sky):
-    import matplotlib.pyplot as plt
+def visualise_angle_of_polarisation(sky, show=True, ax=None):
 
-    plt.figure("angle-of-polarisation", figsize=(4.5, 4.5))
-    ax = plt.subplot(111, polar=True)
+    if not ax:
+        plt.figure("angle-of-polarisation", figsize=(4.5, 4.5))
+        ax = plt.subplot(111, polar=True)
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
 
@@ -491,6 +513,21 @@ def visualise_angle_of_polarisation(sky):
     ax.set_xticks(np.linspace(0, 2*np.pi, 8, endpoint=False))
     ax.set_xticklabels([r'$0^\circ$ (N)', r'$45^\circ$ (NE)', r'$90^\circ$ (E)', r'$135^\circ$ (SE)',
                         r'$180^\circ$ (S)', r'$-135^\circ$ (SW)', r'$-90^\circ$ (W)', r'$-45^\circ$ (NW)'])
+
+    if show:
+        plt.show()
+    return ax
+
+def visualise_lum_angle_degree(sky):
+    import matplotlib.pyplot as plt
+    plt.figure("Sky model", figsize=(9, 4.5))
+
+    ax1 = plt.subplot(131, polar=True)
+    visualise_luminance(sky, ax=ax1, show=False)
+    ax2 = plt.subplot(132, polar=True)
+    visualise_degree_of_polarisation(sky, ax=ax2, show=False)
+    ax3 = plt.subplot(133, polar=True)
+    visualise_degree_of_polarisation(sky, ax=ax3, show=False)
 
     plt.show()
 

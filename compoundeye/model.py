@@ -20,7 +20,10 @@ import numpy as np
 
 class CompoundEye(object):
 
-    def __init__(self, n, omega, rho, nb_pr=8, theta_c=0., phi_c=0., name="compound-eye"):
+    def __init__(self, thetas=None, phis=None,
+                       op_units=8, n=8,
+                       omega=None, rho=None,
+                       nb_pr=8, theta_c=0., phi_c=0., name="compound-eye"):
         """
 
         :param n: number of ommatidia
@@ -32,15 +35,28 @@ class CompoundEye(object):
         :param rho: acceptance angle (degrees)
         :type rho: float, np.ndarray
         """
-        try:
-            self.theta, self.phi, fit = angles_distribution(n, float(omega))
-        except ValueError:
-            self.theta = np.empty(0, dtype=np.float32)
-            self.phi = np.empty(0, dtype=np.float32)
-            fit = False
+        # todo: make op_units and n a single entity
+        self.op_units = op_units
+        self.n = n
+        if type(thetas) is np.ndarray:
+            self.theta = thetas
+            self.phi = phis
+        else:
+            try:
+                self.theta, self.phi, fit = angles_distribution(n, float(omega))
+            except ValueError:
+                self.theta = np.empty(0, dtype=np.float32)
+                self.phi = np.empty(0, dtype=np.float32)
+                fit = False
 
-        if not fit or n > 100:
-            self.theta, self.phi = fibonacci_sphere(n, float(omega))
+            if not fit or n > 100:
+                self.theta, self.phi = fibonacci_sphere(n, float(omega))
+
+        # todo - check what transform is required here
+        self.theta = (self.theta - np.pi) % (2 * np.pi) - np.pi
+        self.phi = (self.phi + np.pi) % (2 * np.pi) - np.pi
+        self.alpha = (self.phi + np.pi / 2) % (2 * np.pi) - np.pi    # alpha from eq (2) p. 8
+
 
         # create transformation matrix of the perceived light with respect to the optical properties of the eye
         rho = np.deg2rad(rho)
@@ -52,6 +68,8 @@ class CompoundEye(object):
         d = np.square(angdist(sph1, sph2).reshape((n, n)))
         sigma = np.square([self.rho] * n) + np.square([self.rho] * n).T
         self._rho_gaussian = np.exp(-d/sigma)
+        # print('d=', d)
+        # print('sigma=', sigma)
         self._rho_gaussian /= np.sum(self._rho_gaussian, axis=1)
 
         # by default the phoro-receptors are white light sensitive and no POL sensitive
@@ -130,17 +148,18 @@ class CompoundEye(object):
 
 class DRA(CompoundEye):
 
-    def __init__(self, n=60, omega=56, rho=5.4, nb_pr=8, theta_c=0., phi_c=0., name="dra"):
+    def __init__(self, thetas=None, phis=None, op_units=60, n=60, omega=56, rho=5.4, nb_pr=8, theta_c=0., phi_c=0., name="dra"):
         """
 
         :param n: number of ommatidia
         :type n: int
-        :param omega: receiptive field (degrees)
+        :param omega: receptive field (degrees)
         :type omega: float
         :param rho: acceptance angle (degrees)
         :type rho: float, np.ndarray
         """
-        super(DRA, self).__init__(n=n, omega=omega, rho=rho, nb_pr=nb_pr, theta_c=theta_c, phi_c=phi_c, name=name)
+        super().__init__(thetas=thetas, phis=phis,
+                         op_units=op_units, n=n, omega=omega, rho=rho, nb_pr=nb_pr, theta_c=theta_c, phi_c=phi_c, name=name)
 
         # set as default the desert ants' ommatidia set-up
         self.rhabdom = np.array([[spectrum["uv"], spectrum["uv"], spectrum["w"], spectrum["uv"],
@@ -154,7 +173,7 @@ class DRA(CompoundEye):
         self.__is_called = False
 
     def __call__(self, my_sky, *args, **kwargs):
-        r = super(DRA, self).__call__(my_sky, *args, **kwargs)
+        r = super().__call__(my_sky, *args, **kwargs)
 
         self.__r_op = np.sum(np.cos(2 * self.mic_l) * r, axis=0)
         self.__r_po = np.sum(r, axis=0)
