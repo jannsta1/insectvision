@@ -6,7 +6,8 @@ from compass.compass_network import Network
 from compoundeye import fibonacci_sphere
 from environment import Sky
 from small_sensor.utils import smallest_diff2angles
-from small_sensor.sensor import SimpleCompass
+from small_sensor.sensor import SimpleCompass, FibonacciCompass
+from sphere.transform import tilt
 from sphere import azidist
 
 
@@ -45,10 +46,14 @@ class Trial(object):
         self.samples = sun_thetas.size
         return sun_thetas, sun_phis
 
-    def run(self, sun_thetas=None, sun_phis=None, theta_tilt=0.3, phi_tilt=0.):
+    def run(self, sun_thetas=None, sun_phis=None, theta_tilt=0., phi_tilt=0.):
 
-        self.sensor.phi_t = phi_tilt
-        self.sensor.theta_t = theta_tilt
+        # tilt the sensor
+        # self.sensor.phi_t = phi_tilt
+        # self.sensor.theta_t = theta_tilt
+        self.sensor.tilt_sensor(theta_tilt=theta_tilt, phi_tilt=phi_tilt)
+
+        # transform relative coordinates
         if sun_thetas and sun_phis:
             # todo - sort out for different input types - list, float ndarray
             # sun_thetas = np.array(sun_thetas)
@@ -74,11 +79,13 @@ class Trial(object):
             # self.sky.sun_azi = this_sun_phi
             self.sky.theta_s = this_sun_theta
             self.sky.phi_s = this_sun_phi
+
+
             # print ('sensor thetas: {}'.format(self.sensor.theta))
             # print ('sensor phis: {}'.format(self.sensor.phi))
             # luminance, dop, aop = self.sky(theta=self.sensor.theta,
             #                                phi=self.sensor.phi)
-            luminance, dop, aop = self.sky(theta=self.sensor.theta, phi=self.sensor.phi,
+            luminance, dop, aop = self.sky(sensor=self.sensor,
                                            theta_tilt=theta_tilt, phi_tilt=phi_tilt,
                                            noise=0., eta=None,
                                            uniform_polariser=False)
@@ -90,7 +97,12 @@ class Trial(object):
             # todo - work through this - just do azimuth error until others needed
             print('sun azimuth: {}, estimated azimuth {}, delta = {} degrees'.format(this_sun_phi, self.network.azimuth_pred,
                    np.rad2deg(smallest_diff2angles(this_sun_phi, self.network.azimuth_pred))))   # todo - seems to be always outputting the same value?
-            azimuth_error_rad[idx] = np.absolute(azidist(np.array([this_sun_theta, this_sun_phi]), np.array([0., self.network.azimuth_pred])))
+
+            # todo - should we use the tilted sun azimuth as the reference?
+            this_sun_theta_tilted = self.sky.theta_sun_tilted
+            this_sun_phi_tilted = self.sky.phi_sun_tilted
+            azimuth_error_rad[idx] = np.absolute(azidist(np.array([this_sun_theta_tilted, this_sun_phi_tilted]), np.array([0., self.network.azimuth_pred])))
+            # azimuth_error_rad[idx] = np.absolute(azidist(np.array([this_sun_theta, this_sun_phi]), np.array([0., self.network.azimuth_pred])))
             # t[i, j] = tau_pred
             # a_ret[i, j] = a_pred
             # tb1[i, j] = r_tcl
@@ -165,6 +177,8 @@ def trial_once():
 
 def trial_across_day():
     #################### day trial, 8 pol sensors
+    # sensor = FibonacciCompass()
+    # t = Trial(sensor_class=sensor)
     t = Trial()
     # err_deg = t.run(sun_thetas=[np.pi/4,], sun_phis=[np.pi/1.5,])
 
@@ -179,7 +193,7 @@ def trial_across_day():
         sky, sun = get_edinburgh_sky(date_str=date_str)
         sun_azi, sun_ele = sun2azi_ele(sun)
 
-        res = t.run(sun_thetas=[sun_ele,], sun_phis=[sun_azi,])
+        res = t.run(sun_thetas=[sun_ele, ], sun_phis=[sun_azi, ])
         results.append(res)
         sun_azis.append(sun_azi)
         sun_eles.append(sun_ele)

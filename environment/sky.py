@@ -26,12 +26,12 @@ T_L = np.array([[ 0.1787, -1.4630],
                 [-0.0670,  0.3703]])
 
 
-class Sky(Environment):
+class Sky(object):
     """
     The Sky environment class. This environment class provides skylight cues.
     """
 
-    def __init__(self, theta_s=np.pi/2, phi_s=np.pi, theta_t=0., phi_t=0., name="sky"):
+    def __init__(self, theta_s=np.pi/2, phi_s=np.pi):
         """
 
         :param theta_s: sun elevation (distance from zenith)
@@ -39,18 +39,20 @@ class Sky(Environment):
         :param theta_t: elevation of observer's zenith point with respect to the sky zenith point (tilt angle: 1)
         :param phi_t: azimuth of observer's zenith point with respect to the sky zenith point (tilt angle: 2)
         """
-        super().__init__(name=name)
+        # initialise sky model params
         self.__a, self.__b, self.__c, self.__d, self.__e = 0., 0., 0., 0., 0.
         self.__tau_L = 2.  # type: float
         self._update_luminance_coefficients(self.__tau_L)
         self.__c1 = .6  # type: float
         self.__c2 = 4.  # type: float
-        self.theta_s = theta_s
-        self.phi_s = phi_s
-        self.theta_t = theta_t
-        self.phi_t = phi_t
 
-        self.__theta = np.full(1, np.nan)  # type: np.ndarray
+        # sun coordinates
+        self.theta_s = theta_s   # todo rename to theta_sun
+        self.phi_s = phi_s
+        self.theta_sun_tilted = theta_s  # todo rename to theta_sun
+        self.phi_sun_tilted = phi_s
+
+        self.__theta = np.full(1, np.nan)  # type: np.ndarray # todo rename to __theta_sun?
         self.__phi = np.full(1, np.nan)  # type: np.ndarray
         self.__aop = np.full(1, np.nan)  # type: np.ndarray
         self.__dop = np.full(1, np.nan)  # type: np.ndarray
@@ -65,18 +67,51 @@ class Sky(Environment):
         # angle_samples = np.linspace(0, 2*np.pi, 10, endpoint=False)
         # radius_matrix, theta_matrix = np.meshgrid(radius_samples, angle_samples)
 
-    def lum_aop_dop_from_position(self, theta_sensor=None, phi_sensor=None, noise=0., eta=None, uniform_polariser=False):
+    # todo - use theta_tilt and phi_tilt from sensor class
+    def __call__(self, sensor, theta_tilt=0., phi_tilt=0., noise=0., eta=None, uniform_polariser=False):
+        """
+        Call the sky instance to generate the sky cues.
+
+        :param theta_sensor: array of points' elevation
+        :type theta_sensor: np.ndarray
+        :param phi_sensor: array of points' azimuth
+        :type phi_sensor: np.ndarray
+        :param noise: the noise level (sigma)
+        :type noise: float
+        :param eta: array of noise level in each point of interest
+        :type eta: np.ndarray
+        :param uniform_polariser:
+        :type uniform_polariser: bool
+        :return: Y, P, A  (Luminance ,degree of polarisation, angle of polarisation)
         """
 
-        """
+        # set default arguments
+        # theta_sensor = ((self.__theta if sensor.theta is None else sensor.theta) + np.pi) % (2 * np.pi) - np.pi
+        # phi_sensor = ((self.__phi if sensor.phi is None else sensor.phi) + np.pi) % (2 * np.pi) - np.pi
+        theta_sensor = sensor.theta  #is None else sensor.theta) + np.pi) % (2 * np.pi) - np.pi
+        phi_sensor = sensor.phi      # ((self.__phi if sensor.phi is None else sensor.phi) + np.pi) % (2 * np.pi) - np.pi
+
+        # self.theta_t = theta_tilt
+        # self.phi_t = phi_tilt
+
+        # save points of interest
+        self.__theta = theta_sensor.copy()
+        self.__phi = phi_sensor.copy()
+
+        # transform points in the sky according to tilting parameters
+        theta_sensor_tilt, phi_sensor_tilt = tilt(theta_tilt, phi_tilt + np.pi, theta=theta_sensor, phi=phi_sensor)   # todo - why put into -180<phi<180 and then add back here?
+
+        # transform sun coordinates todo - why tilt the sky & and why use the sensor as tilting basis?
+        # todo - check where this should be used?
+        self.theta_sun_tilted, self.phi_sun_tilted = tilt(theta_tilt, phi_tilt, theta=self.theta_s, phi=self.phi_s)
 
         theta_s, phi_s = self.theta_s, self.phi_s
         # SKY INTEGRATION
-        gamma = np.arccos(np.cos(theta_sensor) * np.cos(theta_s) +
-                          np.sin(theta_sensor) * np.sin(theta_s) * np.cos(phi_sensor - phi_s))
+        gamma = np.arccos(np.cos(theta_sensor_tilt) * np.cos(theta_s) +
+                          np.sin(theta_sensor_tilt) * np.sin(theta_s) * np.cos(phi_sensor_tilt - phi_s))
 
         # Intensity
-        i_prez = self.L(gamma, theta_sensor)
+        i_prez = self.L(gamma, theta_sensor_tilt)
         i_00 = self.L(0., theta_s)  # the luminance (Cd/m^2) at the zenith point
         i_90 = self.L(np.pi / 2, np.absolute(theta_s - np.pi / 2))  # the luminance (Cd/m^2) on the horizon
 
@@ -92,29 +127,30 @@ class Sky(Environment):
         if uniform_polariser:
             p = np.ones_like(lp)
         else:
-            p = np.clip(2. / np.pi * self.M_p * lp * (theta_sensor * np.cos(theta_sensor) + (np.pi / 2 - theta_sensor) * i), 0., 1.)
+            p = np.clip(
+                2. / np.pi * self.M_p * lp * (theta_sensor_tilt * np.cos(theta_sensor_tilt) + (np.pi / 2 - theta_sensor_tilt) * i), 0.,
+                1.)
 
         # Angle of polarisation
         if uniform_polariser:
             a = np.full_like(p, phi_s + np.pi)
         else:
-            _, a = tilt(theta_s, phi_s + np.pi, theta_sensor, phi_sensor)
+            _, a = tilt(theta_s, phi_s + np.pi, theta_sensor_tilt, phi_sensor_tilt)
 
         # create cloud disturbance
         if eta is None:
             if type(noise) is np.ndarray:
                 if noise.size == p.size:
-                    # print "yeah!"
                     eta = np.array(noise, dtype=bool)
                     if self.verbose:
                         print("Noise level: %.4f (%.2f %%)" % (noise, 100. * eta.sum() / float(eta.size)))
                 else:
-                    eta = np.zeros_like(theta_sensor, dtype=bool)
+                    eta = np.zeros_like(theta_sensor_tilt, dtype=bool)
                     eta[:noise.size] = noise
             elif noise > 0:
                 eta = np.argsort(np.absolute(np.random.randn(*p.shape)))[:int(noise * p.shape[0])]
             else:
-                eta = np.zeros_like(theta_sensor, dtype=bool)
+                eta = np.zeros_like(theta_sensor_tilt, dtype=bool)
         y[eta] = 0.
         p[eta] = 0.  # destroy the polarisation pattern
         a[eta] = np.nan
@@ -126,40 +162,8 @@ class Sky(Environment):
         self.__is_generated = True
 
         return y, p, a
-
-    def __call__(self, theta=None, phi=None, theta_tilt=0., phi_tilt=0., noise=0., eta=None, uniform_polariser=False):
-        """
-        Call the sky instance to generate the sky cues.
-
-        :param theta: array of points' elevation
-        :type theta: np.ndarray
-        :param phi: array of points' azimuth
-        :type phi: np.ndarray
-        :param noise: the noise level (sigma)
-        :type noise: float
-        :param eta: array of noise level in each point of interest
-        :type eta: np.ndarray
-        :param uniform_polariser:
-        :type uniform_polariser: bool
-        :return: Y, P, A  ( ,degree of polarisation, angle of polarisation)
-        """
-
-        # set default arguments
-        theta = ((self.__theta if theta is None else theta) + np.pi) % (2 * np.pi) - np.pi
-        phi = ((self.__phi if phi is None else phi) + np.pi) % (2 * np.pi) - np.pi
-
-        self.theta_t = theta_tilt
-        self.phi_t = phi_tilt
-
-        # save points of interest
-        self.__theta = theta.copy()
-        self.__phi = phi.copy()
-
-        # transform points in the sky according to tilting parameters
-        theta, phi = tilt(self.theta_t, self.phi_t + np.pi, theta=theta, phi=phi)   # todo - why put into -180<phi<180 and then add back here?
-
-        # print ('sky state: phi {}  __phi {} theta {}  __theta {}'.format(phi, self.__phi, theta, self.__theta))
-        return self.lum_aop_dop_from_position(theta_sensor=theta, phi_sensor=phi, noise=noise, eta=eta, uniform_polariser=uniform_polariser)
+        # # print ('sky state: phi {}  __phi {} theta {}  __theta {}'.format(phi, self.__phi, theta, self.__theta))
+        # return self.lum_aop_dop_from_position(theta_sensor_tilt=theta, phi_sensor_tilt=phi, noise=noise, eta=eta, uniform_polariser=uniform_polariser)
 
     def L(self, chi, z):
         """

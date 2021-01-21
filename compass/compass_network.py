@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from environment import eps, spectrum_influence, spectrum
+from sphere.transform import tilt
 
 
 class Network(object):
@@ -29,7 +30,7 @@ class Network(object):
         self.phi_sol = np.linspace(0., 2 * np.pi, self.nb_sol, endpoint=False) #- (np.pi / 4)  # SOL preference angles
         self.phi_tcl = np.linspace(0., 2 * np.pi, self.nb_tcl, endpoint=False) #- (np.pi / 4)  # TCL preference angles
 
-    def compute(self, sensor, luminance, dop, aop, do_tilt=False):
+    def compute(self, sensor, luminance, dop, aop, do_tilt=True):
 
         # Input (POL) layer -- Photo-receptors
         print('luminance ALL: {}'.format(luminance))
@@ -41,8 +42,14 @@ class Network(object):
         self.latest_dop = dop
         self.latest_aop = aop
 
-        alpha = (sensor.phi + np.pi / 2) % (2 * np.pi) - np.pi
-        alpha_ = alpha # todo - this will be the tilt angle
+        # alpha = (sensor.phi + np.pi / 2) % (2 * np.pi) - np.pi      # todo - can this transform be done at the sensor?
+
+        # alpha_ = sensor._alpha_t # todo - use this in place
+
+        _, alpha_ = tilt(sensor.theta_t, sensor.phi_t + np.pi, theta=np.pi / 2, phi=sensor.alpha)
+
+        # alpha_ = alpha  # todo - this will be the tilt angle
+        # _, alpha_ = tilt(sensor.theta_t, sensor.phi_t + np.pi, theta=np.pi / 2, phi=alpha)
         # alpha_ = 0 # todo - this will be the tilt angle
         # todo - how does this relate to the paper formula (eq1 p7)?
         # s_par = s_parallel
@@ -58,18 +65,22 @@ class Network(object):
 
         # todo - add in tilt layer
         # # Tilting (SOL) layer
-        if do_tilt:
-            # d_gate = (np.sin(shift - theta) * np.cos(theta_t) +
-            #           np.cos(shift - theta) * np.sin(theta_t) *
-            #           np.cos(phi - phi_t))
-            # gate = .5 * np.power(np.exp(-np.square(d_gate) / (2. * np.square(sigma))), 1)
-            pass
+        # todo - what is shift for? Gausian function p 10.
+        # todo - does shift mean the rest of the sensor is not used? what are the implications for the small sensor?
+        shift = np.deg2rad(40)
+        sigma = np.deg2rad(13)  # Gausian sigma function eq. 5 p. 9 - Gkanias et al. 2019
+
+        d_gate = (np.sin(shift - sensor.theta) * np.cos(sensor.theta_t) +
+                  np.cos(shift - sensor.theta) * np.sin(sensor.theta_t) *
+                  np.cos(sensor.phi - sensor.phi_t))
+        gate = .5 * np.power(np.exp(-np.square(d_gate) / (2. * np.square(sigma))), 1)
+
 
         # alpha = (sensor.phi + np.pi / 2) % (2 * np.pi) - np.pi
         # alpha = (sensor.phi + np.pi / 2) % (2 * np.pi) - np.pi
 
         z_pol = float(self.nb_sol) / float(self.nb_pol)
-        w_sol = z_pol * np.sin(alpha[:, np.newaxis] - self.phi_sol[np.newaxis]) # * gate[:, np.newaxis] # <- todo required for gating
+        w_sol = z_pol * np.sin(sensor.alpha[:, np.newaxis] - self.phi_sol[np.newaxis]) * gate[:, np.newaxis] # <- todo required for gating
         self.r_sol = self.r_pol.dot(w_sol)
         # self.r_sol = self.r_pol
         # print('rsol: {}'.format(self.r_sol))

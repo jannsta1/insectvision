@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 import numpy as np
 
+from compoundeye.geometry import fibonacci_sphere
 from environment import Environment, spectrum, spectrum_influence, eps
 from sphere.transform import tilt
 from sphere import angdist
@@ -38,12 +39,13 @@ class GenericPolSensor(object):
         self._rho_gaussian = np.exp(-d/sigma)
         self._rho_gaussian /= np.sum(self._rho_gaussian, axis=1)
 
-        # todo - what are theta_c and phi_c
+        # theta_c and phi_c = theta/phi_compass
         self._theta_c = theta_c
         self._phi_c = phi_c
         # set tilt angle
         self._theta_t = 0.
         self._phi_t = 0.
+        self._alpha_t = 0.
         self.__r = np.full((self.op_units), np.nan)
 
         # setup the sensor spectral sensitivity - just UV by default
@@ -62,6 +64,7 @@ class GenericPolSensor(object):
         self.__is_called = False
 
     def __call__(self, env, *args, **kwargs):
+        # todo:
         """
         :param env: the environment where the photorectors can percieve light
         :type env: Environment
@@ -98,6 +101,19 @@ class GenericPolSensor(object):
 
         return self.r_pol
         # return self.__r
+
+    def tilt_sensor(self, theta_tilt, phi_tilt):   # todo - rename to rotate
+        self.theta_t = theta_tilt
+        self.phi_t = phi_tilt
+        self._alpha_t = tilt(theta_tilt, phi_tilt + np.pi, theta=np.pi/2, phi=self.alpha)
+        print('phi_t', self._alpha_t)
+        print('alpha_t', self._alpha_t)
+        # todo - make sure alpha_t gets updated for all other tilt operations
+    # def update_alpha_tilt(self):
+    #     self._alpha_t = tilt(theta_t, phi_t + np.pi, theta=np.pi / 2, phi=alpha)
+    @property
+    def alpha_t(self):
+        return self._alpha_t
 
     @property
     def theta_t(self):
@@ -151,6 +167,12 @@ class SimpleCompass(GenericPolSensor):
 
         super().__init__(thetas=ele, phis=azis, rho=rho)
 
+class FibonacciCompass(GenericPolSensor):
+    def __init__(self, op_units=60, fov=56, rho=5.4):
+
+        # a ring of 8 sensors pointing at the sky, 45 degrees up from the horizon
+        ele, azis = fibonacci_sphere(samples=op_units, fov=fov)
+        super().__init__(thetas=ele, phis=azis, rho=rho)
 
 # todo - make sensors for these methods:
 #  else:
