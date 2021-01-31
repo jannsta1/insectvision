@@ -9,7 +9,3 @@ __license__ = "MIT"
 __version__ = "1.0.1"
 __maintainer__ = "Evripidis Gkanias"
 
-
-from .geometry import angles_distribution, fibonacci_sphere
-from .model import CompoundEye, DRA
-from .sensor import POLCompassDRA

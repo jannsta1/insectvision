@@ -1,8 +1,9 @@
-from matplotlib import pyplot as plt
+from warnings import warn
 import numpy as np
 
-from compoundeye.geometry import fibonacci_sphere
-from environment import Environment, spectrum, spectrum_influence, eps
+from compoundeye.geometry import fibonacci_sphere, angles_distribution
+from environment.base import spectrum_influence, spectrum
+from environment.utils import eps
 from sphere.transform import tilt
 from sphere import angdist
 
@@ -19,7 +20,6 @@ class GenericPolSensor(object):
         :param rho: acceptance angle (degrees)
         :type rho: float, np.ndarray
         """
-        # todo: make op_units and n a single entity
         self.op_units = np.size(thetas)
 
         self.theta = wrap_to_pi(thetas - np.pi)  # todo - why - pi? (sensor doesn't work without this)
@@ -34,6 +34,9 @@ class GenericPolSensor(object):
         i1, i2 = np.meshgrid(np.arange(self.op_units), np.arange(self.op_units))
         i1, i2 = i1.flatten(), i2.flatten()
         sph1, sph2 = sph[:, i1], sph[:, i2]
+
+        # find the angular distance between each unit to find its contribution on the neighbour
+        # todo - would be better to sample from the sky so that this is not dependent on the number of units
         d = np.square(angdist(sph1, sph2).reshape((self.op_units, self.op_units)))
         sigma = np.square([self.rho] * self.op_units) + np.square([self.rho] * self.op_units).T
         self._rho_gaussian = np.exp(-d/sigma)
@@ -82,6 +85,7 @@ class GenericPolSensor(object):
 
         # todo:
         # influence of the acceptance angle on the luminance and DOP
+        # print (np.shape(self._rho_gaussian))
         # y = y.dot(self._rho_gaussian)
         # p = p.dot(self._rho_gaussian)
 
@@ -103,14 +107,16 @@ class GenericPolSensor(object):
         # return self.__r
 
     def tilt_sensor(self, theta_tilt, phi_tilt):   # todo - rename to rotate
-        self.theta_t = theta_tilt
-        self.phi_t = phi_tilt
-        self._alpha_t = tilt(theta_tilt, phi_tilt + np.pi, theta=np.pi/2, phi=self.alpha)
-        print('phi_t', self._alpha_t)
-        print('alpha_t', self._alpha_t)
-        # todo - make sure alpha_t gets updated for all other tilt operations
-    # def update_alpha_tilt(self):
-    #     self._alpha_t = tilt(theta_t, phi_t + np.pi, theta=np.pi / 2, phi=alpha)
+        """
+        Rotate
+        """
+        # self._theta_t = theta_tilt
+        # self._phi_t = phi_tilt
+        self._theta_t, self._phi_t = tilt(self._theta_c, self._phi_c, theta=theta_tilt, phi=phi_tilt)
+
+        # todo - need to understand this better geometrically - is it OK to discard the first element. esp when tilting
+        _, self._alpha_t = tilt(theta_tilt, phi_tilt + np.pi, theta=np.pi/2, phi=self.alpha)  #  todo - move random offsets to a function
+
     @property
     def alpha_t(self):
         return self._alpha_t
@@ -119,19 +125,19 @@ class GenericPolSensor(object):
     def theta_t(self):
         return self._theta_t
 
-    @theta_t.setter
-    def theta_t(self, value):
-        theta_t, phi_t = tilt(self._theta_c, self._phi_c - np.pi, theta=self._theta_t, phi=self._phi_t)
-        self._theta_t, phi_t = tilt(self._theta_c, self._phi_c, theta=value, phi=self.phi_t)
+    # @theta_t.setter
+    # def theta_t(self, value):
+    #     # theta_t, phi_t = tilt(self._theta_c, self._phi_c - np.pi, theta=self._theta_t, phi=self._phi_t)
+    #     self._theta_t, phi_t = tilt(self._theta_c, self._phi_c, theta=value, phi=self.phi_t)
 
     @property
     def phi_t(self):
         return self._phi_t
 
-    @phi_t.setter
-    def phi_t(self, value):
-        theta_t, phi_t = tilt(self._theta_c, self._phi_c - np.pi, theta=self._theta_t, phi=self._phi_t)
-        theta_t, self._phi_t = tilt(self._theta_c, self._phi_c, theta=self.theta_t, phi=value)
+    # @phi_t.setter
+    # def phi_t(self, value):
+    #     # theta_t, phi_t = tilt(self._theta_c, self._phi_c - np.pi, theta=self._theta_t, phi=self._phi_t)
+    #     theta_t, self._phi_t = tilt(self._theta_c, self._phi_c, theta=self.theta_t, phi=value)
 
     @property
     def r(self):
@@ -158,6 +164,7 @@ class GenericPolSensor(object):
         return "%s(name=%s, n=%d, omega=%f, rho=%f)" % (
             self.__class__.__name__, self.name, self.theta.size, np.max(self.theta) * 2, self.rho[0])
 
+
 class SimpleCompass(GenericPolSensor):
     def __init__(self, op_units=8, ele=np.deg2rad(45), rho=5.4):
 
@@ -167,6 +174,7 @@ class SimpleCompass(GenericPolSensor):
 
         super().__init__(thetas=ele, phis=azis, rho=rho)
 
+
 class FibonacciCompass(GenericPolSensor):
     def __init__(self, op_units=60, fov=56, rho=5.4):
 
@@ -174,83 +182,16 @@ class FibonacciCompass(GenericPolSensor):
         ele, azis = fibonacci_sphere(samples=op_units, fov=fov)
         super().__init__(thetas=ele, phis=azis, rho=rho)
 
-# todo - make sensors for these methods:
-#  else:
-#             try:
-#                 self.theta, self.phi, fit = angles_distribution(n, float(omega))
-#             except ValueError:
-#                 self.theta = np.empty(0, dtype=np.float32)
-#                 self.phi = np.empty(0, dtype=np.float32)
-#                 fit = False
-#
-#             if not fit or n > 100:
-#                 self.theta, self.phi = fibonacci_sphere(n, float(omega))
 
-def visualise_luminance_2(sky, sun=None, sensor=None, show=True, ax=None):
+class SphericalDistributionCompass(GenericPolSensor):
+    def __init__(self, op_units=60, fov=56, rho=5.4):
 
-    fig = plt.figure()
-    if not ax:
-        plt.figure("Luminance", figsize=(4.5, 4.5))
-        # ax = plt.subplot(111, polar=True)
-        ax = plt.subplot(111, polar=True)
-    ax.set_theta_zero_location("N")
-    ax.set_theta_direction(-1)
+        # a ring of 8 sensors pointing at the sky, 45 degrees up from the horizon
+        ele, azis, design_OK = angles_distribution(nb_lenses=op_units, fov=float(fov))
 
-    samples = 1000
-    fov = 180
-    thetas, phis = fibonacci_sphere(samples=samples, fov=fov)
+        if not design_OK:
+            warn('requested {} samples, using {}'.format(op_units, np.size(ele)))
 
-    phis = phis[thetas <= np.pi / 2]
-    thetas = thetas[thetas <= np.pi / 2]
-    thetas = (thetas - np.pi) % (2 * np.pi) - np.pi
-    phis = (phis + np.pi) % (2 * np.pi) - np.pi
+        super().__init__(thetas=ele, phis=azis, rho=rho)
 
-    luminance, dop, aop = sky.lum_aop_dop_from_position(theta_sensor=thetas, phi_sensor=phis, noise=0., eta=None, uniform_polariser=False)
 
-    vmax = np.ceil(np.max(luminance))
-
-    # theta_s, phi_s = tilt(sky.theta_t, sky.phi_t, theta=sky.theta_s, phi=sky.phi_s)
-    ax.scatter(phis, thetas, s=20, c=luminance, marker='.', cmap='Blues_r', vmin=0, vmax=vmax)
-    # ax.scatter(phis, thetas, s=20, c=luminance, marker='.', cmap='Blues_r')
-    if sun is not None:
-        sun_azi, sun_ele = sun2azi_ele(sun)
-        ax.scatter(sun_azi, sun_ele, s=100, edgecolor='black', facecolor='yellow')
-    # zenith location?
-    if sensor is not None:
-        # todo - change to theta_t when tilt is implemented
-        print('*************')
-        print(sensor.phi)
-        print(sensor.theta)
-        print('*************')
-        # sensor_luminance, sensor_dop, sensor_aop = sky.lum_aop_dop_from_position(theta_sensor=sensor.theta, phi_sensor=sensor.phi, noise=0., eta=None,
-        #                                                        uniform_polariser=False)
-        sensor_luminance, sensor_dop, sensor_aop = sky(theta=sensor.theta, phi=sensor.phi, noise=0., eta=None,
-                                                               uniform_polariser=False)
-        print('lum: {} dop: {} aop: {}'.format(sensor_luminance, sensor_dop, sensor_aop))
-        ax.scatter(sensor.phi, sensor.theta, s=100, c=sensor_luminance, edgecolor='black', cmap='Blues_r', vmin=0, vmax=vmax)
-
-    ax.scatter(sky.phi_t + np.pi, sky.theta_t, s=200, edgecolor='black', facecolor='greenyellow')
-
-    ax.set_yticks([0, np.pi/4, np.pi/2])
-    ax.set_yticklabels(['$0$', '$\pi/4$', '$\pi$/2'], fontweight='bold')
-    ax.set_xticks(np.linspace(0, 2*np.pi, 8, endpoint=False))
-    ax.set_xticklabels([r'$0^\circ$ (N)', r'$45^\circ$ (NE)', r'$90^\circ$ (E)', r'$135^\circ$ (SE)',
-                        r'$180^\circ$ (S)', r'$-135^\circ$ (SW)', r'$-90^\circ$ (W)', r'$-45^\circ$ (NW)'])
-
-    # pc = ax.pcolormesh(phis[:, np.newaxis], thetas[:, np.newaxis], luminance[:, np.newaxis])
-    # fig.colorbar(pc)
-    if show:
-        plt.show()
-        # ax = plt.subplot(111)
-        # ax.scatter(phis, thetas)
-        # plt.show()
-    return ax
-
-if __name__ == '__main__':
-
-    op_units = 8
-    unit_fov = np.deg2rad(10)
-    ele = np.deg2rad(45)
-    compass = SimpleCompass(op_units=op_units, ele=ele, omega=unit_fov, rho=unit_fov)
-    edinburgh_sky, edinburgh_sun = get_edinburgh_sky()
-    visualise_luminance_2(edinburgh_sky, edinburgh_sun, sensor=compass)

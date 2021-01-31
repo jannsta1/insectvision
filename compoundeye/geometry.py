@@ -18,6 +18,9 @@ A_lens = np.pi * np.square(LENS_RADIUS)
 
 
 def angles_distribution(nb_lenses, fov, verbose=False):
+
+    fov = float(fov)     # must be
+    # todo - description of this function
     import os
     __root__ = os.path.split(os.path.dirname(os.path.abspath(__file__)))[0]
     filename = os.path.join(__root__, "data", "compoundeye", "sensor-%d-%d.yaml" % (nb_lenses, fov))

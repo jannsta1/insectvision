@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from environment import eps, spectrum_influence, spectrum
+from environment.base import spectrum_influence, spectrum
+from environment.utils import eps
 from sphere.transform import tilt
 
 
@@ -10,6 +11,9 @@ class Network(object):
     def __init__(self, nb_pol, nb_sol=8, nb_tcl=8,
                  ephemeris=False,
                  ):
+        """
+        Uses the same coordinate system as the sky i.e. North = 0 with 0 < azimuth < 2pi
+        """
 
         self.nb_sol = nb_sol
         self.nb_tcl = nb_tcl
@@ -22,68 +26,52 @@ class Network(object):
         self.r_tcl = np.tile(np.nan, nb_tcl)
 
         # initialise other fields
-        self.FFT_r_tcl = np.nan
-        self.a_pred = np.nan
-        self.tau_pred = np.nan
+        self.FFT_r_tcl = np.nan      # Fast fourier transform of response
+        self.a_pred = np.nan         # sun azimuth prediction
+        self.tau_pred = np.nan       # confidence of the prediction
 
         # computational model parameters
         self.phi_sol = np.linspace(0., 2 * np.pi, self.nb_sol, endpoint=False) #- (np.pi / 4)  # SOL preference angles
         self.phi_tcl = np.linspace(0., 2 * np.pi, self.nb_tcl, endpoint=False) #- (np.pi / 4)  # TCL preference angles
 
-    def compute(self, sensor, luminance, dop, aop, do_tilt=True):
+    def compute(self, sensor, luminance, dop, aop, tilt_mechanism=True):
+        """
+        Given a sensor and its environmental response (luminance, dop & aop), calculate an estimate of the sun's azimuth
+        """
 
         # Input (POL) layer -- Photo-receptors
-        print('luminance ALL: {}'.format(luminance))
         luminance = spectrum_influence(v=luminance, wl=spectrum["uv"])
-        print('luminance UV: {}'.format(luminance))
 
-        # log for plotting
+        # log the latest inputs for plotting convenience
         self.latest_luminance = luminance
         self.latest_dop = dop
         self.latest_aop = aop
 
-        # alpha = (sensor.phi + np.pi / 2) % (2 * np.pi) - np.pi      # todo - can this transform be done at the sensor?
+        # _, alpha_ = tilt(sensor.theta_t, sensor.phi_t + np.pi, theta=np.pi / 2, phi=sensor.alpha)
 
-        # alpha_ = sensor._alpha_t # todo - use this in place
-
-        _, alpha_ = tilt(sensor.theta_t, sensor.phi_t + np.pi, theta=np.pi / 2, phi=sensor.alpha)
-
-        # alpha_ = alpha  # todo - this will be the tilt angle
-        # _, alpha_ = tilt(sensor.theta_t, sensor.phi_t + np.pi, theta=np.pi / 2, phi=alpha)
-        # alpha_ = 0 # todo - this will be the tilt angle
-        # todo - how does this relate to the paper formula (eq1 p7)?
-        # s_par = s_parallel
-        # s_per = s_perpendicular
-        # alpha = orientation of the primary axis of one of the sensor units?
-        # alpha_ = tilted alpha
-        s_par = luminance * (np.square(np.sin(aop - alpha_)) + np.square(np.cos(aop - alpha_)) * np.square(1. - dop))
-        s_per = luminance * (np.square(np.cos(aop - alpha_)) + np.square(np.sin(aop - alpha_)) * np.square(1. - dop))
+        s_par = luminance * (np.square(np.sin(aop - sensor.alpha_t)) + np.square(np.cos(aop - sensor.alpha_t)) * np.square(1. - dop))
+        s_per = luminance * (np.square(np.cos(aop - sensor.alpha_t)) + np.square(np.sin(aop - sensor.alpha_t)) * np.square(1. - dop))
         r_par, r_per = np.sqrt(s_par), np.sqrt(s_per)
         r_op, r_po = r_par - r_per, r_par + r_per
         self.r_pol = r_op / (r_po + eps)
-        print('rpol: {}'.format(self.r_pol))
+        # print('rpol: {}'.format(self.r_pol))
 
-        # todo - add in tilt layer
         # # Tilting (SOL) layer
         # todo - what is shift for? Gausian function p 10.
         # todo - does shift mean the rest of the sensor is not used? what are the implications for the small sensor?
-        shift = np.deg2rad(40)
-        sigma = np.deg2rad(13)  # Gausian sigma function eq. 5 p. 9 - Gkanias et al. 2019
-
-        d_gate = (np.sin(shift - sensor.theta) * np.cos(sensor.theta_t) +
-                  np.cos(shift - sensor.theta) * np.sin(sensor.theta_t) *
-                  np.cos(sensor.phi - sensor.phi_t))
-        gate = .5 * np.power(np.exp(-np.square(d_gate) / (2. * np.square(sigma))), 1)
-
-
-        # alpha = (sensor.phi + np.pi / 2) % (2 * np.pi) - np.pi
-        # alpha = (sensor.phi + np.pi / 2) % (2 * np.pi) - np.pi
+        if tilt_mechanism:
+            shift = np.deg2rad(40)
+            sigma = np.deg2rad(13)  # Gausian sigma function eq. 5 p. 9 - Gkanias et al. 2019
+            d_gate = (np.sin(shift - sensor.theta) * np.cos(sensor.theta_t) +
+                      np.cos(shift - sensor.theta) * np.sin(sensor.theta_t) *
+                      np.cos(sensor.phi - sensor.phi_t))
+            gate = .5 * np.power(np.exp(-np.square(d_gate) / (2. * np.square(sigma))), 1)
 
         z_pol = float(self.nb_sol) / float(self.nb_pol)
-        w_sol = z_pol * np.sin(sensor.alpha[:, np.newaxis] - self.phi_sol[np.newaxis]) * gate[:, np.newaxis] # <- todo required for gating
+        w_sol = z_pol * np.sin(sensor.alpha[:, np.newaxis] - self.phi_sol[np.newaxis])
+        if tilt_mechanism:
+            w_sol = w_sol * gate[:, np.newaxis]
         self.r_sol = self.r_pol.dot(w_sol)
-        # self.r_sol = self.r_pol
-        # print('rsol: {}'.format(self.r_sol))
 
         # Output (TB1) layer
         # eph = (a - np.pi / 3) if self.ephemeris else 0.  # nb: a = phi_s
@@ -92,7 +80,6 @@ class Network(object):
 
         # r_tb1 = r_cl1.dot(w_tb1)
         self.r_tcl = self.r_sol.dot(self.w_tcl)
-
         # print('w_tcl: {}'.format(self.w_tcl))
         # print('r_tcl: {}'.format(self.r_tcl))
 
@@ -103,6 +90,7 @@ class Network(object):
         self.FFT_r_tcl = self.r_tcl.dot(np.exp(-np.arange(self.nb_tcl) * (0. + 1.j) * 2. * np.pi / float(self.nb_tcl)))    # Fast fourier transform of response
         self.azimuth_pred = (np.pi - np.arctan2(self.FFT_r_tcl.imag, self.FFT_r_tcl.real)) % (2. * np.pi) - np.pi  # sun azimuth (prediction)
         self.tau_pred = np.absolute(self.FFT_r_tcl)   # confidence of the prediction
+        return self.FFT_r_tcl, self.azimuth_pred, self.tau_pred
 
     def plot_weight_states(self, label_font_size=11, unit_font_size=10, colormap='viridis'):
 

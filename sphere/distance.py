@@ -36,14 +36,14 @@ def angdist(v1, v2, zenith=True):
     # if d.ndim > 1:
     #     d = d.diagonal()
     np.seterr(all='raise')
-    try:
-        np.arccos(d)
-    except RuntimeWarning as e:
-        print ("d is {}".format(d))
-        print (e)
-    except FloatingPointError as e:
-        print("d is {}".format(d))
-        print(e)
+    # try:
+    #     np.arccos(d)
+    # except RuntimeWarning as e:
+    #     print ("d is {}".format(d))
+    #     print (e)
+    # except FloatingPointError as e:
+    #     print("d is {}".format(d))
+    #     print(e)
     np.seterr(all='warn')
 
     # np.seterr(all='log')

@@ -12,9 +12,7 @@ __maintainer__ = "Evripidis Gkanias"
 
 import ephem
 import numpy as np
-import matplotlib.pyplot as plt
 
-from environment.base import Environment
 from sphere.transform import tilt
 from environment.utils import eps
 
@@ -452,101 +450,37 @@ class Sky(object):
         return s
 
 
-def visualise_luminance(sky, show=True, ax=None):
+def sun2azi_ele(s):
+    """
+    Returns the position of the sun relative to the obeserver it has been computed against
+    s properties:
+    s.az — Azimuth east of north
+    s.alt — Altitude above horizon
+    """
+    azi = s.az.real
+    ele = (np.pi/2) - s.alt.real  # todo - figure out why the coordinates start at zenith
 
-    if not ax:
-        plt.figure("Luminance", figsize=(4.5, 4.5))
-        ax = plt.subplot(111, polar=True)
-    ax.set_theta_zero_location("N")
-    ax.set_theta_direction(-1)
-
-    theta_s, phi_s = tilt(sky.theta_t, sky.phi_t, theta=sky.theta_s, phi=sky.phi_s)
-    ax.scatter(sky.phi, sky.theta, s=20, c=sky.Y, marker='.', cmap='Blues_r', vmin=0, vmax=6)
-    ax.scatter(phi_s, theta_s, s=100, edgecolor='black', facecolor='yellow')
-    # ax.scatter(sky.phi_t + np.pi, sky.theta_t, s=200, edgecolor='black', facecolor='greenyellow')
-    ax.set_ylim([0, np.pi/2])
-    ax.set_yticks([])
-    ax.set_xticks(np.linspace(0, 2*np.pi, 8, endpoint=False))
-    ax.set_xticklabels([r'$0^\circ$ (N)', r'$45^\circ$ (NE)', r'$90^\circ$ (E)', r'$135^\circ$ (SE)',
-                        r'$180^\circ$ (S)', r'$-135^\circ$ (SW)', r'$-90^\circ$ (W)', r'$-45^\circ$ (NW)'])
-
-    if show:
-        plt.show()
-    return ax
+    assert s.az.imag == 0, 'unknown behaviour imag az: {}'.format(s.az.imag)
+    assert s.alt.imag == 0, 'unknown behaviour imag alt: {}'.format(s.alt.imag)
+    # print('Sun azi: ' + str(azi) + ' ele: ' + str(ele))
+    # print(azi, ele)
+    return azi.real, ele.real
 
 
-def visualise_degree_of_polarisation(sky, show=True, ax=None):
+def get_edinburgh_sky(date_str='2021/06/06 12:00'):
 
-    if not ax:
-        plt.figure("degree-of-polarisation", figsize=(4.5, 4.5))
-        ax = plt.subplot(111, polar=True)
-    ax.set_theta_zero_location("N")
-    ax.set_theta_direction(-1)
+    # agent location
+    edinburgh = ephem.city('Edinburgh')
+    edinburgh.date = date_str   # todo - default to now?
+    # print('Edinburgh date ', edinburgh.date)
 
-    theta_s, phi_s = tilt(sky.theta_t, sky.phi_t, theta=sky.theta_s, phi=sky.phi_s)
-    print(theta_s, phi_s)
-    ax.scatter(sky.phi, sky.theta, s=10, c=sky.DOP, marker='.', cmap='Greys', vmin=0, vmax=1)
-    ax.scatter(phi_s, theta_s, s=100, edgecolor='black', facecolor='yellow')
-    # ax.scatter(sky.phi_t + np.pi, sky.theta_t, s=200, edgecolor='black', facecolor='greenyellow')
-    ax.set_ylim([0, np.pi/2])
-    ax.set_yticks([])
-    ax.set_xticks(np.linspace(0, 2*np.pi, 8, endpoint=False))
-    ax.set_xticklabels([r'$0^\circ$ (N)', r'$45^\circ$ (NE)', r'$90^\circ$ (E)', r'$135^\circ$ (SE)',
-                        r'$180^\circ$ (S)', r'$-135^\circ$ (SW)', r'$-90^\circ$ (W)', r'$-45^\circ$ (NW)'])
-
-    if show:
-        plt.show()
-    return ax
+    # sun location
+    sun = ephem.Sun()
+    sun.date = date_str
+    sun.compute(edinburgh)   # compute sun position relative to observer
+    sun_azi, sun_ele = sun2azi_ele(sun)
+    # print('sun azi: {} sun ele: {}'.format(sun_azi, sun_ele))
+    return Sky(theta_s=sun_ele, phi_s=sun_azi)
 
 
-def visualise_angle_of_polarisation(sky, show=True, ax=None):
 
-    if not ax:
-        plt.figure("angle-of-polarisation", figsize=(4.5, 4.5))
-        ax = plt.subplot(111, polar=True)
-    ax.set_theta_zero_location("N")
-    ax.set_theta_direction(-1)
-
-    theta_s, phi_s = tilt(sky.theta_t, sky.phi_t, theta=sky.theta_s, phi=sky.phi_s)
-    print(theta_s, phi_s)
-    ax.scatter(sky.phi, sky.theta, s=10, c=sky.AOP, marker='.', cmap='hsv', vmin=-np.pi, vmax=np.pi)
-    ax.scatter(phi_s, theta_s, s=100, edgecolor='black', facecolor='yellow')
-    # ax.scatter(sky.phi_t + np.pi, sky.theta_t, s=200, edgecolor='black', facecolor='greenyellow')
-    ax.set_ylim([0, np.pi/2])
-    ax.set_yticks([])
-    ax.set_xticks(np.linspace(0, 2*np.pi, 8, endpoint=False))
-    ax.set_xticklabels([r'$0^\circ$ (N)', r'$45^\circ$ (NE)', r'$90^\circ$ (E)', r'$135^\circ$ (SE)',
-                        r'$180^\circ$ (S)', r'$-135^\circ$ (SW)', r'$-90^\circ$ (W)', r'$-45^\circ$ (NW)'])
-
-    if show:
-        plt.show()
-    return ax
-
-def visualise_lum_angle_degree(sky):
-    import matplotlib.pyplot as plt
-    plt.figure("Sky model", figsize=(9, 4.5))
-
-    ax1 = plt.subplot(131, polar=True)
-    visualise_luminance(sky, ax=ax1, show=False)
-    ax2 = plt.subplot(132, polar=True)
-    visualise_degree_of_polarisation(sky, ax=ax2, show=False)
-    ax3 = plt.subplot(133, polar=True)
-    visualise_degree_of_polarisation(sky, ax=ax3, show=False)
-
-    plt.show()
-
-
-if __name__ == "__main__":
-    from compoundeye.geometry import fibonacci_sphere
-
-    t, p = fibonacci_sphere(10000, 180)
-
-    s = Sky(theta_s=np.pi/6)
-    # s = sky_from_observer()
-    # s = Sky.from_type(11)
-    # s.theta_s = np.pi/6
-    y, p, a = s(t, p)
-
-    visualise_luminance(s)
-    visualise_degree_of_polarisation(s)
-    visualise_angle_of_polarisation(s)

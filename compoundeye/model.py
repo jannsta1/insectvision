@@ -11,7 +11,8 @@ __maintainer__ = "Evripidis Gkanias"
 
 
 from .geometry import angles_distribution, fibonacci_sphere
-from environment import Environment, spectrum, spectrum_influence, eps
+from environment.base import spectrum_influence, spectrum
+from environment.utils import eps
 from sphere.transform import tilt
 from sphere import angdist
 
